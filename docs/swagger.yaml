@@ -1,0 +1,262 @@
+basePath: /api
+definitions:
+  api.ErrorResponse:
+    properties:
+      code:
+        type: integer
+      message:
+        type: string
+    type: object
+  api.PaginatedResponse:
+    properties:
+      data: {}
+      page:
+        type: integer
+      size:
+        type: integer
+      totalCount:
+        type: integer
+    type: object
+  domain.AccountBalance:
+    properties:
+      accountId:
+        type: string
+      asOf:
+        type: string
+      balance:
+        type: integer
+      currency:
+        type: string
+      ownerId:
+        type: string
+      status:
+        $ref: '#/definitions/domain.AccountStatus'
+    type: object
+  domain.AccountStatus:
+    enum:
+    - ACTIVE
+    - FROZEN
+    - CLOSED
+    type: string
+    x-enum-varnames:
+    - StatusActive
+    - StatusFrozen
+    - StatusClosed
+  domain.AccountSummary:
+    properties:
+      accountId:
+        type: string
+      balance:
+        type: integer
+      currency:
+        type: string
+      ownerId:
+        type: string
+      status:
+        $ref: '#/definitions/domain.AccountStatus'
+    type: object
+  domain.EventType:
+    enum:
+    - ACCOUNT_CREATED
+    - ACCOUNT_CREDITED
+    - ACCOUNT_DEBITED
+    - ACCOUNT_STATUS_CHANGED
+    - TRANSFER_INITIATED
+    - TRANSFER_COMPLETED
+    - TRANSFER_REVERSED
+    type: string
+    x-enum-varnames:
+    - EventAccountCreated
+    - EventAccountCredited
+    - EventAccountDebited
+    - EventAccountStatusChanged
+    - EventTransferInitiated
+    - EventTransferCompleted
+    - EventTransferReversed
+  domain.Statement:
+    properties:
+      accountId:
+        type: string
+      closingBalance:
+        type: integer
+      entries:
+        items:
+          $ref: '#/definitions/domain.Transaction'
+        type: array
+      month:
+        description: YYYY-MM
+        type: string
+      openingBalance:
+        type: integer
+    type: object
+  domain.Transaction:
+    properties:
+      accountId:
+        type: string
+      amount:
+        type: integer
+      createdAt:
+        type: string
+      currency:
+        type: string
+      direction:
+        description: CREDIT | DEBIT
+        type: string
+      eventType:
+        $ref: '#/definitions/domain.EventType'
+      id:
+        type: string
+      reference:
+        type: string
+    type: object
+host: localhost:8081
+info:
+  contact:
+    email: ledger@example.com
+    name: Ledger Team
+  description: 'Read-side of the CQRS ledger: balances, transaction history, statements.'
+  license:
+    name: Apache 2.0
+    url: http://www.apache.org/licenses/LICENSE-2.0.html
+  termsOfService: http://example.com/terms/
+  title: Ledger Query Service API
+  version: "1.0"
+paths:
+  /v1/accounts:
+    get:
+      description: Returns all accounts belonging to an owner
+      parameters:
+      - description: Owner ID
+        in: query
+        name: ownerId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/domain.AccountSummary'
+            type: array
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List accounts by owner
+      tags:
+      - accounts
+  /v1/accounts/{accountId}/balance:
+    get:
+      description: Returns the current balance and status for an account
+      parameters:
+      - description: Account ID
+        in: path
+        name: accountId
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.AccountBalance'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get account balance
+      tags:
+      - accounts
+  /v1/accounts/{accountId}/statement:
+    get:
+      description: Returns the opening balance, all entries, and closing balance for
+        a given month
+      parameters:
+      - description: Account ID
+        in: path
+        name: accountId
+        required: true
+        type: string
+      - description: Month (YYYY-MM)
+        in: query
+        name: month
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/domain.Statement'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: Get monthly statement
+      tags:
+      - accounts
+  /v1/accounts/{accountId}/transactions:
+    get:
+      description: Returns paginated transaction history for an account
+      parameters:
+      - description: Account ID
+        in: path
+        name: accountId
+        required: true
+        type: string
+      - default: 0
+        description: Page number (0-based)
+        in: query
+        name: page
+        type: integer
+      - default: 20
+        description: Page size
+        in: query
+        name: size
+        type: integer
+      - description: From date (YYYY-MM-DD)
+        in: query
+        name: from
+        type: string
+      - description: To date (YYYY-MM-DD)
+        in: query
+        name: to
+        type: string
+      - description: CREDIT or DEBIT
+        enum:
+        - CREDIT
+        - DEBIT
+        in: query
+        name: direction
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/api.PaginatedResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/api.ErrorResponse'
+      summary: List transaction history
+      tags:
+      - accounts
+swagger: "2.0"
