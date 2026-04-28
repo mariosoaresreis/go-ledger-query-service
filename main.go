@@ -17,17 +17,14 @@ package main
 
 import (
 	"context"
-	"database/sql"
 	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
+	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jmoiron/sqlx"
 	"github.com/sirupsen/logrus"
-	"github.com/uptrace/bun"
-	"github.com/uptrace/bun/dialect/pgdialect"
-	"github.com/uptrace/bun/driver/pgdriver"
-	"github.com/uptrace/bun/extra/bundebug"
 
 	"go-ledger-query-service/config"
 	_ "go-ledger-query-service/docs"
@@ -48,17 +45,16 @@ func main() {
 		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName, cfg.DBSSLMode,
 	)
 
-	sqlDB := sql.OpenDB(pgdriver.NewConnector(pgdriver.WithDSN(dsn)))
-	sqlDB.SetMaxOpenConns(cfg.DBConns)
-
-	db := bun.NewDB(sqlDB, pgdialect.New())
-	if cfg.Environment == "local" || cfg.Environment == "dev" {
-		db.AddQueryHook(bundebug.NewQueryHook(bundebug.WithVerbose(true)))
+	db, err := sqlx.Open("pgx", dsn)
+	if err != nil {
+		logrus.Fatalf("cannot initialize database connection: %v", err)
 	}
+	db.SetMaxOpenConns(cfg.DBConns)
 
 	if err := db.PingContext(context.Background()); err != nil {
 		logrus.Fatalf("cannot connect to database: %v", err)
 	}
+	defer db.Close()
 	logrus.Info("database: connected")
 
 	// Repositories

@@ -36,29 +36,25 @@ type KafkaEvent struct {
 
 // AccountBalance is the read-model projection for GET /accounts/{id}/balance.
 type AccountBalance struct {
-	AccountID string        `bun:"account_id,pk"     json:"accountId"`
-	OwnerID   string        `bun:"owner_id"          json:"ownerId"`
-	Currency  string        `bun:"currency"          json:"currency"`
-	Balance   int64         `bun:"balance"           json:"balance"`
-	Status    AccountStatus `bun:"status"            json:"status"`
-	AsOf      time.Time     `bun:"as_of"             json:"asOf"`
+	AccountID string        `db:"account_id" json:"accountId"`
+	OwnerID   string        `db:"owner_id"   json:"ownerId"`
+	Currency  string        `db:"currency"   json:"currency"`
+	Balance   int64         `db:"balance"    json:"balance"`
+	Status    AccountStatus `db:"status"     json:"status"`
+	AsOf      time.Time     `db:"as_of"      json:"asOf"`
 }
-
-func (AccountBalance) TableName() string { return "account_balances" }
 
 // Transaction is the read-model projection for the transaction history.
 type Transaction struct {
-	ID        string    `bun:"id,pk"         json:"id"`
-	AccountID string    `bun:"account_id"    json:"accountId"`
-	EventType EventType `bun:"event_type"    json:"eventType"`
-	Amount    int64     `bun:"amount"        json:"amount"`
-	Currency  string    `bun:"currency"      json:"currency"`
-	Direction string    `bun:"direction"     json:"direction"` // CREDIT | DEBIT
-	Reference string    `bun:"reference"     json:"reference"`
-	CreatedAt time.Time `bun:"created_at"    json:"createdAt"`
+	ID        string    `db:"id"         json:"id"`
+	AccountID string    `db:"account_id" json:"accountId"`
+	EventType EventType `db:"event_type" json:"eventType"`
+	Amount    int64     `db:"amount"     json:"amount"`
+	Currency  string    `db:"currency"   json:"currency"`
+	Direction string    `db:"direction"  json:"direction"` // CREDIT | DEBIT
+	Reference string    `db:"reference"  json:"reference"`
+	CreatedAt time.Time `db:"created_at" json:"createdAt"`
 }
-
-func (Transaction) TableName() string { return "transactions" }
 
 // Statement is computed on-the-fly from transactions.
 type Statement struct {
@@ -71,14 +67,12 @@ type Statement struct {
 
 // AccountSummary is returned by the list-by-owner query.
 type AccountSummary struct {
-	AccountID string        `bun:"account_id" json:"accountId"`
-	OwnerID   string        `bun:"owner_id"   json:"ownerId"`
-	Currency  string        `bun:"currency"   json:"currency"`
-	Balance   int64         `bun:"balance"    json:"balance"`
-	Status    AccountStatus `bun:"status"     json:"status"`
+	AccountID string        `db:"account_id" json:"accountId"`
+	OwnerID   string        `db:"owner_id"   json:"ownerId"`
+	Currency  string        `db:"currency"   json:"currency"`
+	Balance   int64         `db:"balance"    json:"balance"`
+	Status    AccountStatus `db:"status"     json:"status"`
 }
-
-func (AccountSummary) TableName() string { return "account_balances" }
 
 // Payload types for event deserialization.
 type AccountCreatedPayload struct {
