@@ -67,8 +67,8 @@ resource "kubernetes_config_map" "query_config" {
   }
 
   data = {
-    QUERY_DB_HOST                = var.query_db_host
-    QUERY_DB_PORT                = "5432"
+    LEDGER_QUERY_DB_HOST         = var.query_db_host
+    LEDGER_QUERY_DB_PORT         = "5432"
     LEDGER_KAFKA_BOOTSTRAP_SERVERS = var.kafka_bootstrap_servers
     LEDGER_REDIS_HOST            = var.redis_host != "" ? var.redis_host : "redis.ledger-query.svc.cluster.local"
     LEDGER_REDIS_PORT            = "6379"
@@ -82,8 +82,8 @@ resource "kubernetes_secret" "query_secret" {
     namespace = kubernetes_namespace.ledger_query.metadata[0].name
   }
   data = {
-    QUERY_DB_USERNAME = var.query_db_username
-    QUERY_DB_PASSWORD = var.query_db_password
+    LEDGER_QUERY_DB_USERNAME = var.query_db_username
+    LEDGER_QUERY_DB_PASSWORD = var.query_db_password
   }
   type = "Opaque"
 }
@@ -138,7 +138,7 @@ resource "kubernetes_deployment" "query_app" {
 
           readiness_probe {
             http_get {
-              path = "/actuator/health"
+              path = "/api/ping"
               port = 8081
             }
             initial_delay_seconds = 60
@@ -148,7 +148,7 @@ resource "kubernetes_deployment" "query_app" {
 
           liveness_probe {
             http_get {
-              path = "/actuator/health"
+              path = "/api/ping"
               port = 8081
             }
             initial_delay_seconds = 90
