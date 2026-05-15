@@ -34,8 +34,8 @@ resource "kubernetes_stateful_set" "redis" {
           image = "redis:7-alpine"
           port { container_port = 6379 }
           resources {
-            requests = { cpu = "50m", memory = "64Mi" }
-            limits   = { cpu = "100m", memory = "128Mi" }
+            requests = { cpu = "10m", memory = "16Mi" }
+            limits   = { cpu = "100m", memory = "64Mi" }
           }
         }
       }
@@ -157,7 +157,7 @@ resource "kubernetes_deployment" "query_app" {
           }
 
           resources {
-            requests = { cpu = "10m", memory = "96Mi" }
+            requests = { cpu = "10m", memory = "64Mi" }
             limits   = { cpu = "250m", memory = "256Mi" }
           }
         }
