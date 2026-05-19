@@ -6,8 +6,9 @@ import (
 	"testing"
 	"time"
 
-	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	"go-ledger-query-service/internal/domain"
+
+	sqlmock "github.com/DATA-DOG/go-sqlmock"
 )
 
 func TestTransactionRepository_ListTransactions_WithFiltersAndPagination(t *testing.T) {
@@ -24,19 +25,20 @@ func TestTransactionRepository_ListTransactions_WithFiltersAndPagination(t *test
 		Size:      10,
 	}
 
-	countQuery := regexp.QuoteMeta("SELECT COUNT(1) FROM transactions WHERE account_id = $1 AND created_at >= $2 AND created_at <= $3 AND direction = $4")
+	// New query uses `<` (exclusive upper bound) and passes time.Time values.
+	countQuery := regexp.QuoteMeta("SELECT COUNT(1) FROM transactions WHERE account_id = $1 AND created_at >= $2 AND created_at < $3 AND direction = $4")
 	mock.ExpectQuery(countQuery).
-		WithArgs("acc-1", "2026-04-01", "2026-04-30 23:59:59", "CREDIT").
+		WithArgs("acc-1", sqlmock.AnyArg(), sqlmock.AnyArg(), "CREDIT").
 		WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
 
-	listQuery := regexp.QuoteMeta("SELECT id, account_id, event_type, amount, currency, direction, reference, created_at FROM transactions WHERE account_id = $1 AND created_at >= $2 AND created_at <= $3 AND direction = $4 ORDER BY created_at DESC LIMIT $5 OFFSET $6")
+	listQuery := regexp.QuoteMeta("SELECT id, account_id, event_type, amount, currency, direction, reference, created_at FROM transactions WHERE account_id = $1 AND created_at >= $2 AND created_at < $3 AND direction = $4 ORDER BY created_at DESC LIMIT $5 OFFSET $6")
 	now := time.Now().UTC()
 	rows := sqlmock.NewRows([]string{"id", "account_id", "event_type", "amount", "currency", "direction", "reference", "created_at"}).
 		AddRow("evt-1", "acc-1", "ACCOUNT_CREDITED", int64(10), "USD", "CREDIT", "ref-1", now).
 		AddRow("evt-2", "acc-1", "ACCOUNT_CREDITED", int64(20), "USD", "CREDIT", "ref-2", now.Add(-time.Minute))
 
 	mock.ExpectQuery(listQuery).
-		WithArgs("acc-1", "2026-04-01", "2026-04-30 23:59:59", "CREDIT", 10, 10).
+		WithArgs("acc-1", sqlmock.AnyArg(), sqlmock.AnyArg(), "CREDIT", 10, 10).
 		WillReturnRows(rows)
 
 	txns, total, err := repo.ListTransactions(context.Background(), filter)
@@ -94,11 +96,12 @@ func TestTransactionRepository_GetMonthlyTransactions(t *testing.T) {
 
 	repo := NewTransactionRepository(db)
 
-	query := regexp.QuoteMeta(`
-		SELECT id, account_id, event_type, amount, currency, direction, reference, created_at
+	// New query uses a date range (>= start, < end) instead of TO_CHAR so it is index-friendly.
+	query := regexp.QuoteMeta(`SELECT id, account_id, event_type, amount, currency, direction, reference, created_at
 		FROM transactions
 		WHERE account_id = $1
-		  AND TO_CHAR(created_at, 'YYYY-MM') = $2
+		  AND created_at >= $2
+		  AND created_at < $3
 		ORDER BY created_at ASC
 	`)
 	now := time.Now().UTC()
@@ -106,7 +109,7 @@ func TestTransactionRepository_GetMonthlyTransactions(t *testing.T) {
 		AddRow("evt-month", "acc-3", "ACCOUNT_DEBITED", int64(40), "USD", "DEBIT", "rent", now)
 
 	mock.ExpectQuery(query).
-		WithArgs("acc-3", "2026-04").
+		WithArgs("acc-3", sqlmock.AnyArg(), sqlmock.AnyArg()).
 		WillReturnRows(rows)
 
 	txns, err := repo.GetMonthlyTransactions(context.Background(), "acc-3", "2026-04")

@@ -46,13 +46,10 @@ func (s *queryService) GetStatement(ctx context.Context, accountID, month string
 		return nil, fmt.Errorf("get statement: %w", err)
 	}
 
-	// Compute opening balance: balance before the first day of the month.
-	// For simplicity we sum all transactions before this month.
-	// In production this would query a dedicated snapshot table.
-	var opening int64
-	for _, t := range txns {
-		// Opening balance is closing - this month's net; here we return 0 as placeholder.
-		_ = t
+	// Opening balance = net of all transactions strictly before this month.
+	opening, err := s.transactionRepo.SumTransactionsBefore(ctx, accountID, month)
+	if err != nil {
+		return nil, fmt.Errorf("get statement: opening balance: %w", err)
 	}
 
 	closing := opening

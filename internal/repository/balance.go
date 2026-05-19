@@ -6,22 +6,30 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jmoiron/sqlx"
 	"go-ledger-query-service/internal/domain"
+
+	"github.com/jmoiron/sqlx"
 )
 
-type balanceDB struct {
-	db *sqlx.DB
+// querier is satisfied by both *sqlx.DB and *sqlx.Tx so repository
+// implementations work inside or outside a database transaction.
+type querier interface {
+	GetContext(ctx context.Context, dest any, query string, args ...any) error
+	SelectContext(ctx context.Context, dest any, query string, args ...any) error
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
 }
 
+type balanceDB struct{ q querier }
+
 // NewBalanceRepository creates a PostgreSQL-backed balance repository.
-func NewBalanceRepository(db *sqlx.DB) BalanceRepository {
-	return &balanceDB{db: db}
-}
+func NewBalanceRepository(db *sqlx.DB) BalanceRepository { return &balanceDB{q: db} }
+
+// newBalanceTx binds a balance repository to an existing transaction.
+func newBalanceTx(tx *sqlx.Tx) BalanceRepository { return &balanceDB{q: tx} }
 
 func (r *balanceDB) GetBalance(ctx context.Context, accountID string) (*domain.AccountBalance, error) {
 	bal := &domain.AccountBalance{}
-	err := r.db.GetContext(ctx, bal, `
+	err := r.q.GetContext(ctx, bal, `
 		SELECT account_id, owner_id, currency, balance, status, as_of
 		FROM account_balances
 		WHERE account_id = $1
@@ -36,7 +44,7 @@ func (r *balanceDB) GetBalance(ctx context.Context, accountID string) (*domain.A
 }
 
 func (r *balanceDB) UpsertBalance(ctx context.Context, balance *domain.AccountBalance) error {
-	_, err := r.db.ExecContext(ctx, `
+	_, err := r.q.ExecContext(ctx, `
 		INSERT INTO account_balances (account_id, owner_id, currency, balance, status, as_of)
 		VALUES ($1, $2, $3, $4, $5, $6)
 		ON CONFLICT (account_id) DO UPDATE
@@ -54,7 +62,7 @@ func (r *balanceDB) UpsertBalance(ctx context.Context, balance *domain.AccountBa
 
 func (r *balanceDB) ListByOwner(ctx context.Context, ownerID string) ([]*domain.AccountSummary, error) {
 	var summaries []*domain.AccountSummary
-	err := r.db.SelectContext(ctx, &summaries, `
+	err := r.q.SelectContext(ctx, &summaries, `
 		SELECT account_id, owner_id, currency, balance, status
 		FROM account_balances
 		WHERE owner_id = $1

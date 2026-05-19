@@ -1,0 +1,12 @@
+project_id              = "ledger-493222"
+db_password             = "L@rissa123"
+kafka_bootstrap_servers = "34.42.87.45:9095"
+artifact_registry_url   = "us-central1-docker.pkg.dev/ledger-493222/ledger"
+region                  = "us-central1"
+environment             = "dev"
+machine_type            = "e2-standard-2"
+node_count              = 1
+min_nodes               = 1
+max_nodes               = 3
+app_image_tag           = "gcp-20260515155045"
+app_replicas            = 1

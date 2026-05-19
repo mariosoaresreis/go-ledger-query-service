@@ -6,9 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/segmentio/kafka-go"
 	"go-ledger-query-service/internal/domain"
 	"go-ledger-query-service/internal/repository"
+
+	"github.com/segmentio/kafka-go"
 )
 
 type inMemoryBalanceRepo struct {
@@ -76,6 +77,34 @@ func (r *inMemoryTxnRepo) GetMonthlyTransactions(_ context.Context, accountID, m
 	return out, nil
 }
 
+func (r *inMemoryTxnRepo) SumTransactionsBefore(_ context.Context, accountID string, before string) (int64, error) {
+	var net int64
+	for _, t := range r.txns {
+		if t.AccountID != accountID {
+			continue
+		}
+		if t.CreatedAt.Format("2006-01") >= before {
+			continue
+		}
+		if t.Direction == "CREDIT" {
+			net += t.Amount
+		} else {
+			net -= t.Amount
+		}
+	}
+	return net, nil
+}
+
+// inMemoryTransactor satisfies repository.Transactor for tests; no real DB tx.
+type inMemoryTransactor struct {
+	balRepo repository.BalanceRepository
+	txnRepo repository.TransactionRepository
+}
+
+func (tr *inMemoryTransactor) RunInTx(ctx context.Context, fn func(context.Context, repository.BalanceRepository, repository.TransactionRepository) error) error {
+	return fn(ctx, tr.balRepo, tr.txnRepo)
+}
+
 type notFoundError string
 
 func (e notFoundError) Error() string { return string(e) }
@@ -87,7 +116,8 @@ func errNotFound(id string) error {
 func TestProcessor_ProjectsCreateAndCreditEvents(t *testing.T) {
 	balanceRepo := &inMemoryBalanceRepo{balances: map[string]*domain.AccountBalance{}}
 	txnRepo := &inMemoryTxnRepo{txns: make([]*domain.Transaction, 0)}
-	processor := NewProcessor(balanceRepo, txnRepo)
+	transactor := &inMemoryTransactor{balRepo: balanceRepo, txnRepo: txnRepo}
+	processor := NewProcessor(balanceRepo, txnRepo, transactor)
 
 	accountID := "4f6f43c0-bd80-4d24-a4d6-c95f9506627d"
 	seedBalance(t, processor, balanceRepo, accountID, "USD", 1250)
@@ -112,7 +142,8 @@ func TestProcessor_ProjectsCreateAndCreditEvents(t *testing.T) {
 func TestProcessor_ProjectsDebitEvent(t *testing.T) {
 	balanceRepo := &inMemoryBalanceRepo{balances: map[string]*domain.AccountBalance{}}
 	txnRepo := &inMemoryTxnRepo{txns: make([]*domain.Transaction, 0)}
-	processor := NewProcessor(balanceRepo, txnRepo)
+	transactor := &inMemoryTransactor{balRepo: balanceRepo, txnRepo: txnRepo}
+	processor := NewProcessor(balanceRepo, txnRepo, transactor)
 
 	accountID := "aabbccdd-0001-0001-0001-aabbccddee01"
 	seedBalance(t, processor, balanceRepo, accountID, "GBP", 5000)
@@ -155,7 +186,8 @@ func TestProcessor_ProjectsDebitEvent(t *testing.T) {
 func TestProcessor_ProjectsStatusChange(t *testing.T) {
 	balanceRepo := &inMemoryBalanceRepo{balances: map[string]*domain.AccountBalance{}}
 	txnRepo := &inMemoryTxnRepo{txns: make([]*domain.Transaction, 0)}
-	processor := NewProcessor(balanceRepo, txnRepo)
+	transactor := &inMemoryTransactor{balRepo: balanceRepo, txnRepo: txnRepo}
+	processor := NewProcessor(balanceRepo, txnRepo, transactor)
 
 	accountID := "aabbccdd-0002-0002-0002-aabbccddee02"
 	seedBalance(t, processor, balanceRepo, accountID, "EUR", 0)
@@ -196,7 +228,8 @@ func TestProcessor_TransferSaga_BothBalancesUpdated(t *testing.T) {
 		dstID: {AccountID: dstID, OwnerID: "owner-dst", Currency: "USD", Balance: 500, Status: domain.StatusActive},
 	}}
 	txnRepo := &inMemoryTxnRepo{txns: make([]*domain.Transaction, 0)}
-	processor := NewProcessor(balanceRepo, txnRepo)
+	transactor := &inMemoryTransactor{balRepo: balanceRepo, txnRepo: txnRepo}
+	processor := NewProcessor(balanceRepo, txnRepo, transactor)
 
 	// Source is debited.
 	debitPayload, _ := json.Marshal(domain.AccountDebitedPayload{

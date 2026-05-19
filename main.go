@@ -57,7 +57,8 @@ func main() {
 	defer db.Close()
 	logrus.Info("database: connected")
 
-	// Repositories
+	// Repositories + transactor
+	store := repository.NewStore(db)
 	balanceRepo := repository.NewBalanceRepository(db)
 	txnRepo := repository.NewTransactionRepository(db)
 
@@ -65,7 +66,7 @@ func main() {
 	querySvc := services.NewQueryService(balanceRepo, txnRepo)
 
 	// ── Kafka Consumer ────────────────────────────────────────────────────────
-	processor := kafkapkg.NewProcessor(balanceRepo, txnRepo)
+	processor := kafkapkg.NewProcessor(balanceRepo, txnRepo, store)
 	consumer := kafkapkg.NewConsumer(cfg.KafkaBootstrapServers, cfg.KafkaTopic, cfg.KafkaGroupID, processor)
 
 	// ── API ───────────────────────────────────────────────────────────────────
